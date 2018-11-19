@@ -3,6 +3,7 @@ let cheerio = require('cheerio');
 let URL = require('url-parse');
 
 const express = require('express');
+const bodyParser= require('body-parser')
 const app = express();
 
 let START_URL = "http://www.arstechnica.com";
@@ -22,68 +23,83 @@ app.listen(7000, function() {
 
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/test.html')
+  console.log(res)
   // Note: __dirname is directory that contains the JavaScript source code. Try logging it and see what you get!
   // Mine was '/Users/zellwk/Projects/demo-repos/crud-express-mongo' for this app.
 })
+const puppeteer = require('puppeteer');
 
-pagesToVisit.push(START_URL);
-console.log("pages" + pagesToVisit)
-crawl();
+let bookingUrl = 'https://www.booking.com/searchresults.html?label=gen173nr-1DCAEoggI46AdIM1gEaJgCiAEBmAExuAEXyAEM2AED6AEB-AECiAIBqAID;sid=48b15ddbc2bfd94e9486d11e1062b601;ac_click_type=b&ac_position=0&checkin_month=12&checkin_monthday=10&checkin_year=2018&checkout_month=12&checkout_monthday=13&checkout_year=2018&class_interval=1&dest_id=-2701757&dest_type=city&dtdisc=0&from_sf=1&group_adults=1&group_children=0&inac=0&index_postcard=0&label_click=undef&no_rooms=1&offset=0&postcard=0&raw_dest_type=city&room1=A&sb_price_type=total&search_selected=1&shw_aparth=1&slp_r_match=0&src=index&src_elem=sb&ss=Ubud%2C%20Bali%2C%20Indonesia&ss_all=0&ss_raw=u&ssb=empty&sshis=0&';
+(async () => {
+    const browser = await puppeteer.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1920, height: 926 });
+    await page.goto(bookingUrl);
 
-function crawl() {
-  if(numPagesVisited >= MAX_PAGES_TO_VISIT) {
-    console.log("Reached max limit of number of pages to visit.");
-    return;
-  }
-  var nextPage = pagesToVisit.pop();
-  //console.log("nextpage" + pagesToVisit)
-  if (nextPage in pagesVisited) {
-    // We've already visited this page, so repeat the crawl
-    crawl();
-  } else {
-    // New page we haven't visited
-    visitPage(nextPage, crawl);
-  }
-}
+    // get hotel details
+    let hotelData = await page.evaluate(() => {
+        let hotels = [];
+        // get the hotel elements
+        let hotelsElms = document.querySelectorAll('div.sr_property_block[data-hotelid]');``
+        // get the hotel data
+        hotelsElms.forEach((hotelelement) => {
+            let hotelJson = {};
+            try {
+                // hotelJson.complete = hotelelement.innerText;
+                // hotelJson.details = hotelelement.$$eval('a', a => a.href); trying to get the link
+                hotelJson.name = hotelelement.querySelector('span.sr-hotel__name').innerText;
+                hotelJson.reviews = hotelelement.querySelector('span.review-score-widget__subtext').innerText;
+                hotelJson.rating = hotelelement.querySelector('span.review-score-badge').innerText;
+                if(hotelelement.querySelector('strong.price')){
+                    hotelJson.price = hotelelement.querySelector('strong.price').innerText;
+                }
+            }
+            catch (exception){
 
-function visitPage(url, callback) {
-  // Add page to our set
-  console.log("adsf" + pagesVisited[url])
-  pagesVisited[url] = true;
+            }
+            hotels.push(hotelJson);
+        });
+        return hotels;
+    });
+    console.dir(hotelData);
+})();
 
-  numPagesVisited++;
+
+// let bookingUrl = 'https://booking.kayak.com/flights/NYC-BOS/2018-11-19/2018-12-06';
+// (async () => {
+//     const browser = await puppeteer.launch({ headless: true });
+//     const page = await browser.newPage();
+//     await page.setViewport({ width: 1920, height: 926 });
+//     await page.goto(bookingUrl);
+//
+//     // get hotel details
+//     let hotelData = await page.evaluate(() => {
+//         let hotels = [];
+//         // get the hotel elements
+//         let hotelsElms = document.querySelectorAll('div.sr_property_block[data-hotelid]');``
+//         // get the hotel data
+//         hotelsElms.forEach((hotelelement) => {
+//             let hotelJson = {};
+//             try {
+//                 hotelJson.name = hotelelement.querySelector('span.sr-hotel__name').innerText;
+//                 hotelJson.reviews = hotelelement.querySelector('span.review-score-widget__subtext').innerText;
+//                 hotelJson.rating = hotelelement.querySelector('span.review-score-badge').innerText;
+//                 if(hotelelement.querySelector('strong.price')){
+//                     hotelJson.price = hotelelement.querySelector('strong.price').innerText;
+//                 }
+//             }
+//             catch (exception){
+//
+//             }
+//             hotels.push(hotelJson);
+//         });
+//         return hotels;
+//     });
+//
+//     console.dir(hotelData);
+// })();
+
+
 
   // Make the request
-  console.log("Visiting page " + url);
-  request(url, function(error, response, body) {
-     // Check status code (200 is HTTP OK)
-     console.log("Status code: " + response.statusCode);
-     if(response.statusCode !== 200) {
-       callback();
-       return;
-     }
-     // Parse the document body
-     let $ = cheerio.load(body);
-     let isWordFound = searchForWord($, SEARCH_WORD);
-     if(isWordFound) {
-       console.log('Word ' + SEARCH_WORD + ' found at page ' + url);
-     } else {
-       collectInternalLinks($);
-       // In this short program, our callback is just calling crawl()
-       callback();
-     }
-  });
-}
-
-function searchForWord($, word) {
-  let bodyText = $('html > body').text().toLowerCase();
-  return(bodyText.indexOf(word.toLowerCase()) !== -1);
-}
-
-function collectInternalLinks($) {
-    let relativeLinks = $("a[href^='/']");
-    console.log("Found " + relativeLinks.length + " relative links on page");
-    relativeLinks.each(function() {
-        pagesToVisit.push(baseUrl + $(this).attr('href'));
-    });
-}
+//  console.log("Visiting page " + url);
